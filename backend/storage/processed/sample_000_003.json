@@ -2,7 +2,7 @@
   "analysis_id": "sample_000_003",
   "video_id": "sample_000_003",
   "filename": "000_003.mp4",
-  "created_at": "2026-11-05T17:37:38Z",
+  "created_at": "2026-11-05T18:14:13Z",
   "verdict": {
     "verdict": "LIKELY MANIPULATED",
     "p_fake": 0.9317,
@@ -11,7 +11,7 @@
     "threshold_manipulated": 0.7,
     "n_clips_analyzed": 60,
     "video_duration_s": 15.84,
-    "processing_time_s": 0.85,
+    "processing_time_s": 0.96,
     "model_architecture": "DFD-FCG (CLIP ViT-L/14 + FCG)",
     "checkpoint_status": "Exact DFD-FCG Research Checkpoint (FaceForensics++ c23 Benchmark)",
     "inference_mode": "benchmark"

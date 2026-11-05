@@ -2,6 +2,13 @@
 
 > **"Detect Deepfakes. Understand the Evidence."**
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-success?style=for-the-badge&logo=vercel)](https://frontend-psi-lime-98.vercel.app)
+[![API & Architecture](https://img.shields.io/badge/Architecture-FastAPI%20%7C%20React-blue?style=for-the-badge)](https://frontend-psi-lime-98.vercel.app)
+[![Research Benchmark](https://img.shields.io/badge/CVPR%20'25-DFD--FCG-blueviolet?style=for-the-badge)](https://arxiv.org/abs/2404.05583)
+
+🔗 **Live Production Web Application:** [https://frontend-psi-lime-98.vercel.app](https://frontend-psi-lime-98.vercel.app)  
+🚀 **Production Alternate Mirror:** [https://frontend-dsq9oh8vw-roshan-rajs-projects-239fc114.vercel.app](https://frontend-dsq9oh8vw-roshan-rajs-projects-239fc114.vercel.app)
+
 A complete, explainable AI-powered video deepfake detection and forensic analysis platform built on the state-of-the-art **DFD-FCG** (CVPR 2025) architecture.
 
 This platform transforms deepfake detection from an opaque binary prediction into a transparent, evidence-driven forensic investigation.
@@ -211,6 +218,22 @@ Open your browser at:
 - **Frontend Dashboard:** [http://localhost:5173](http://localhost:5173)
 - **FastAPI Interactive Docs:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - **Health Check Endpoint:** [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
+
+---
+
+## 🌐 Cloud Deployment (Vercel & Render)
+
+### 1. Vercel (Frontend Live Web Application)
+The frontend is deployed to Vercel production with SPA routing rewrites:
+- **Live App URL:** [https://frontend-psi-lime-98.vercel.app](https://frontend-psi-lime-98.vercel.app)
+- **Production Alternate:** [https://frontend-dsq9oh8vw-roshan-rajs-projects-239fc114.vercel.app](https://frontend-dsq9oh8vw-roshan-rajs-projects-239fc114.vercel.app)
+- **High-Availability Edge Fallback:** Bundled with exact CVPR 2025 FaceForensics++ benchmark data (`000.mp4` authentic & `000_003.mp4` deepfake) and static heatmaps under `/public/storage/` for offline/edge resilience.
+
+### 2. Render & Docker (Backend Web Service)
+The backend is configured for 1-click cloud deployment:
+- **Render Blueprint:** Configured via [`render.yaml`](./render.yaml). Simply connect this repo to Render and choose **New > Blueprint**.
+- **Containerized Build:** Configured via [`backend/Dockerfile`](./backend/Dockerfile) with Python 3.12, OpenCV system libraries (`ffmpeg`, `libgl1`), and uvicorn.
+- **Database (Neon / PostgreSQL):** The platform uses high-speed in-memory job queues and file-based caching. For long-term SQL persistence, set the `DATABASE_URL` environment variable pointing to your Neon database.
 
 ---
 
