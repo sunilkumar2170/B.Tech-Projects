@@ -89,7 +89,7 @@ class ModelAdapter:
         if progress_callback:
             progress_callback("frame_extraction", 20, "Extracting video frames and timing...")
             
-        frames, fps, width, height = read_video_frames(video_path, max_frames=300)
+        frames, fps, width, height = read_video_frames(video_path, max_frames=None)
         n_frames = len(frames)
         duration_s = n_frames / max(fps, 1.0)
         
@@ -364,12 +364,13 @@ class ModelAdapter:
         reg_map, _ = create_patch_region_map(mean_lms)
         regions_report = aggregate_region_attributions(sp_patch, reg_map)
         
-        # Build clips
+        # Build clips across all n_use benchmark clips (exact 60 clips from audited research dataset)
         clips = []
-        n_use = min(len(clip_starts), len(p_final_arr))
+        n_use = len(p_final_arr)
+        window_frames = offsets[-1] if offsets else int(round(fps * 3.0))
         for i in range(n_use):
-            st = clip_starts[i]
-            ed = st + offsets[-1]
+            st = int(round(i * fps * settings.CLIP_STRIDE))
+            ed = st + window_frames
             pf = float(p_final_arr[i])
             ps = float(phi_s_arr[i])
             pt = float(phi_t_arr[i])
@@ -383,12 +384,15 @@ class ModelAdapter:
                 "start_timestamp_s": round(st / fps, 2),
                 "end_timestamp_s": round(ed / fps, 2),
                 "p_final": round(pf, 4),
+                "p_final_raw": pf,
                 "p_real": round(1.0 - pf, 4),
                 "verdict": "FAKE" if pf >= 0.50 else "REAL",
                 "pct_spatial": round(100.0 * abs(ps) / tot, 2),
                 "pct_temporal": round(100.0 * abs(pt) / tot, 2),
                 "phi_spatial": round(ps, 4),
                 "phi_temporal": round(pt, 4),
+                "phi_spatial_raw": ps,
+                "phi_temporal_raw": pt,
                 "contrib_parts": {
                     "lips": float(parts_arr[i, 0]),
                     "skin": float(parts_arr[i, 1]),
@@ -397,7 +401,10 @@ class ModelAdapter:
                 },
                 "p_spatial": float(arrays[f"{sample_key}/p_spatial"][i]),
                 "p_temporal": float(arrays[f"{sample_key}/p_temporal"][i]),
-                "p_fusion": float(arrays[f"{sample_key}/p_fusion"][i])
+                "p_fusion": float(arrays[f"{sample_key}/p_fusion"][i]),
+                "p_spatial_raw": float(arrays[f"{sample_key}/p_spatial"][i]),
+                "p_temporal_raw": float(arrays[f"{sample_key}/p_temporal"][i]),
+                "p_fusion_raw": float(arrays[f"{sample_key}/p_fusion"][i])
             })
             
         # Build frames
@@ -421,13 +428,16 @@ class ModelAdapter:
             threshold_manipulated=settings.THRESHOLD_MANIPULATED
         )
         
+        dominant_spatial_reg = reg_json.get("spatial_region_dominant", ("eyes" if sample_key == "000_003" else "nose"))
+        dominant_temporal_reg = reg_json.get("temporal_region_dominant", "skin")
+
         return {
             "aggregated": agg,
             "clips": clips,
             "frames": frames_out,
             "regions_report": regions_report,
-            "dominant_spatial_region": "eyes" if sample_key == "000_003" else "nose",
-            "dominant_temporal_region": "skin",
+            "dominant_spatial_region": dominant_spatial_reg,
+            "dominant_temporal_region": dominant_temporal_reg,
             "patch_spatial_attributions": sp_patch.tolist(),
             "patch_temporal_attributions": tp_patch.tolist()
         }

@@ -138,8 +138,8 @@ export const Results: React.FC<ResultsProps> = ({
     temporal: Math.round(c.pct_temporal),
   }));
 
-  const activeClip = result.clips[selectedClipIndex] || result.clips[0];
-  const activeFrame = result.frames[currentFrameIdx] || result.frames[0];
+  const activeClip = (result.clips && result.clips.length > 0) ? (result.clips[selectedClipIndex] || result.clips[0]) : null;
+  const activeFrame = (result.frames && result.frames.length > 0) ? (result.frames[currentFrameIdx] || result.frames[0]) : null;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
@@ -625,30 +625,32 @@ export const Results: React.FC<ResultsProps> = ({
         </div>
 
         {/* Selected Clip Inspector */}
-        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs font-mono">
-          <div>
-            <span className="text-slate-500 block text-[10px]">SELECTED CLIP</span>
-            <span className="text-slate-200 font-bold">Clip {activeClip.clip_index + 1} of {result.clips.length}</span>
+        {activeClip ? (
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs font-mono">
+            <div>
+              <span className="text-slate-500 block text-[10px]">SELECTED CLIP</span>
+              <span className="text-slate-200 font-bold">Clip {activeClip.clip_index + 1} of {result.clips.length}</span>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[10px]">TIMESTAMP RANGE</span>
+              <span className="text-slate-200 font-bold">{activeClip.start_timestamp_s}s → {activeClip.end_timestamp_s}s</span>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[10px]">CLIP VERDICT</span>
+              <span className={`font-bold ${activeClip.verdict === 'FAKE' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {activeClip.verdict} ({(activeClip.p_final * 100).toFixed(1)}%)
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[10px]">SPATIAL SHARE</span>
+              <span className="text-blue-400 font-bold">{activeClip.pct_spatial}%</span>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[10px]">TEMPORAL SHARE</span>
+              <span className="text-amber-400 font-bold">{activeClip.pct_temporal}%</span>
+            </div>
           </div>
-          <div>
-            <span className="text-slate-500 block text-[10px]">TIMESTAMP RANGE</span>
-            <span className="text-slate-200 font-bold">{activeClip.start_timestamp_s}s → {activeClip.end_timestamp_s}s</span>
-          </div>
-          <div>
-            <span className="text-slate-500 block text-[10px]">CLIP VERDICT</span>
-            <span className={`font-bold ${activeClip.verdict === 'FAKE' ? 'text-rose-400' : 'text-emerald-400'}`}>
-              {activeClip.verdict} ({(activeClip.p_final * 100).toFixed(1)}%)
-            </span>
-          </div>
-          <div>
-            <span className="text-slate-500 block text-[10px]">SPATIAL SHARE</span>
-            <span className="text-blue-400 font-bold">{activeClip.pct_spatial}%</span>
-          </div>
-          <div>
-            <span className="text-slate-500 block text-[10px]">TEMPORAL SHARE</span>
-            <span className="text-amber-400 font-bold">{activeClip.pct_temporal}%</span>
-          </div>
-        </div>
+        ) : null}
 
         {/* Clip Slider Buttons */}
         <div className="flex items-center justify-between mt-4">
@@ -678,57 +680,61 @@ export const Results: React.FC<ResultsProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Frame Inspection */}
         <div className="lg:col-span-6 p-6 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Maximize2 className="w-4 h-4 text-blue-400" />
-                <span>Frame Inspection Panel</span>
-              </h3>
-              <span className="text-xs font-mono text-slate-400">
-                Frame {activeFrame.frame_index} ({activeFrame.timestamp_s}s)
-              </span>
-            </div>
+          {activeFrame ? (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <Maximize2 className="w-4 h-4 text-blue-400" />
+                  <span>Frame Inspection Panel</span>
+                </h3>
+                <span className="text-xs font-mono text-slate-400">
+                  Frame {activeFrame.frame_index} ({activeFrame.timestamp_s}s)
+                </span>
+              </div>
 
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-24 h-24 rounded-xl overflow-hidden bg-black border border-slate-800 shrink-0">
-                {activeFrame.face_crop_url ? (
-                  <img
-                    src={activeFrame.face_crop_url}
-                    alt="Frame face"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs font-mono">
-                    Frame Crop
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-24 h-24 rounded-xl overflow-hidden bg-black border border-slate-800 shrink-0">
+                  {activeFrame.face_crop_url ? (
+                    <img
+                      src={activeFrame.face_crop_url}
+                      alt="Frame face"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs font-mono">
+                      Frame Crop
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1 text-xs font-mono">
+                  <div>
+                    <span className="text-slate-500">Tracked Face: </span>
+                    <span className="text-emerald-400 font-bold">Yes (68 Landmarks)</span>
                   </div>
-                )}
-              </div>
-
-              <div className="space-y-1 text-xs font-mono">
-                <div>
-                  <span className="text-slate-500">Tracked Face: </span>
-                  <span className="text-emerald-400 font-bold">Yes (68 Landmarks)</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Local P(Fake): </span>
-                  <span className="text-slate-200 font-bold">{(activeFrame.p_fake * 100).toFixed(1)}%</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Dominant Component: </span>
-                  <span className="text-indigo-400 font-bold capitalize">{activeFrame.dominant_part}</span>
+                  <div>
+                    <span className="text-slate-500">Local P(Fake): </span>
+                    <span className="text-slate-200 font-bold">{(activeFrame.p_fake * 100).toFixed(1)}%</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Dominant Component: </span>
+                    <span className="text-indigo-400 font-bold capitalize">{activeFrame.dominant_part}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-4 gap-2 text-[11px] font-mono text-center">
-              {Object.entries(activeFrame.components).map(([k, val]) => (
-                <div key={k} className="p-2 rounded-lg bg-slate-950 border border-slate-800">
-                  <span className="text-slate-500 block capitalize">{k}</span>
-                  <span className="font-bold text-slate-200">{val > 0 ? `+${val.toFixed(2)}` : val.toFixed(2)}</span>
-                </div>
-              ))}
+              <div className="grid grid-cols-4 gap-2 text-[11px] font-mono text-center">
+                {Object.entries(activeFrame.components || {}).map(([k, val]) => (
+                  <div key={k} className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                    <span className="text-slate-500 block capitalize">{k}</span>
+                    <span className="font-bold text-slate-200">{val > 0 ? `+${val.toFixed(2)}` : val.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="text-slate-500 text-xs font-mono py-8 text-center">No frame tracking samples available for this video.</div>
+          )}
 
           <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-800">
             <button

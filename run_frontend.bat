@@ -2,6 +2,6 @@
 echo ========================================================
 echo   Video Deepfake Detection - Starting React + Vite Frontend
 echo ========================================================
-cd frontend
+cd /d "%~dp0frontend"
 npm run dev
 pause

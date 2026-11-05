@@ -14,13 +14,13 @@ def aggregate_clip_results(
     if not clip_results:
         raise ValueError("No clip results to aggregate.")
         
-    p_finals = [c["p_final"] for c in clip_results]
-    p_spatials = [c["p_spatial"] for c in clip_results]
-    p_temporals = [c["p_temporal"] for c in clip_results]
-    p_fusions = [c["p_fusion"] for c in clip_results]
+    p_finals = [c.get("p_final_raw", c["p_final"]) for c in clip_results]
+    p_spatials = [c.get("p_spatial_raw", c["p_spatial"]) for c in clip_results]
+    p_temporals = [c.get("p_temporal_raw", c["p_temporal"]) for c in clip_results]
+    p_fusions = [c.get("p_fusion_raw", c["p_fusion"]) for c in clip_results]
     
-    phi_spatials = [c.get("shapley_spatial", c.get("phi_spatial", 0.0)) for c in clip_results]
-    phi_temporals = [c.get("shapley_temporal", c.get("phi_temporal", 0.0)) for c in clip_results]
+    phi_spatials = [c.get("phi_spatial_raw", c.get("shapley_spatial", c.get("phi_spatial", 0.0))) for c in clip_results]
+    phi_temporals = [c.get("phi_temporal_raw", c.get("shapley_temporal", c.get("phi_temporal", 0.0))) for c in clip_results]
     
     mean_p_final = float(np.mean(p_finals))
     std_p_final = float(np.std(p_finals))
@@ -31,12 +31,18 @@ def aggregate_clip_results(
     mean_phi_s = float(np.mean(phi_spatials))
     mean_phi_t = float(np.mean(phi_temporals))
     
-    # Absolute Shapley normalization for branch share
-    tot_phi = abs(mean_phi_s) + abs(mean_phi_t)
-    if tot_phi == 0:
-        tot_phi = 1e-9
-    pct_spatial = float(100.0 * abs(mean_phi_s) / tot_phi)
-    pct_temporal = float(100.0 * abs(mean_phi_t) / tot_phi)
+    # Compute branch share faithfully from per-clip percentages (matching CVPR 2025 benchmark)
+    pct_spatials = [c["pct_spatial"] for c in clip_results if "pct_spatial" in c]
+    pct_temporals = [c["pct_temporal"] for c in clip_results if "pct_temporal" in c]
+    if pct_spatials and pct_temporals:
+        pct_spatial = float(np.mean(pct_spatials))
+        pct_temporal = float(np.mean(pct_temporals))
+    else:
+        tot_phi = abs(mean_phi_s) + abs(mean_phi_t)
+        if tot_phi == 0:
+            tot_phi = 1e-9
+        pct_spatial = float(100.0 * abs(mean_phi_s) / tot_phi)
+        pct_temporal = float(100.0 * abs(mean_phi_t) / tot_phi)
     
     # Final verdict based on configured thresholds
     p_fake = mean_p_final

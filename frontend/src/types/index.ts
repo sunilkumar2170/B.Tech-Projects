@@ -131,13 +131,22 @@ export interface ClipDetail {
   start_timestamp_s: number;
   end_timestamp_s: number;
   p_final: number;
+  p_final_raw?: number;
   p_real: number;
   verdict: string;
   pct_spatial: number;
   pct_temporal: number;
   phi_spatial: number;
   phi_temporal: number;
+  phi_spatial_raw?: number;
+  phi_temporal_raw?: number;
   contrib_parts?: Record<string, number>;
+  p_spatial?: number;
+  p_temporal?: number;
+  p_fusion?: number;
+  p_spatial_raw?: number;
+  p_temporal_raw?: number;
+  p_fusion_raw?: number;
 }
 
 export interface FrameInspectionDetail {
