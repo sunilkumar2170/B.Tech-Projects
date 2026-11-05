@@ -130,14 +130,16 @@ class ModelAdapter:
         if progress_callback:
             progress_callback("dfd_fcg_inference", 60, "Running DFD-FCG spatial-temporal neural inference...")
             
-        # Check if this matches a research sample key or filename (000 / 000_003)
-        resolved_sample = sample_key
-        if not resolved_sample:
-            fname = video_path.stem.lower()
-            if "000_003" in fname:
-                resolved_sample = "000_003"
-            elif "000" in fname:
-                resolved_sample = "000"
+        # Check if this matches a research benchmark sample key (000 / 000_003)
+        resolved_sample = None
+        if sample_key in ("000", "000_003"):
+            resolved_sample = sample_key
+        elif analysis_id.startswith("sample_"):
+            potential = analysis_id.replace("sample_", "")
+            if potential in ("000", "000_003"):
+                resolved_sample = potential
+        elif video_path.parent.resolve() == settings.SAMPLES_DIR.resolve() and video_path.stem in ("000", "000_003"):
+            resolved_sample = video_path.stem
                 
         status_info = model_loader.get_status()
         model_instance = model_loader.get_model()
@@ -154,6 +156,7 @@ class ModelAdapter:
                 analysis_id
             )
             checkpoint_status = "Exact DFD-FCG Research Checkpoint (FaceForensics++ c23 Benchmark)"
+            inference_mode = "benchmark"
         elif model_instance is not None:
             # Live neural inference using loaded DFD-FCG checkpoint
             result_data = self._run_live_inference(
@@ -167,6 +170,7 @@ class ModelAdapter:
                 analysis_id
             )
             checkpoint_status = f"DFD-FCG Active Checkpoint (Device: {status_info['device']})"
+            inference_mode = "live"
         elif settings.COLAB_GPU_URL:
             # Live inference using remote Google Colab GPU worker
             try:
@@ -180,6 +184,7 @@ class ModelAdapter:
                     clip_starts
                 )
                 checkpoint_status = f"DFD-FCG Remote GPU Worker ({settings.COLAB_GPU_URL})"
+                inference_mode = "remote"
             except Exception as e:
                 print(f"[ModelAdapter] Remote GPU worker failed: {e}. Switching to forensic analyzer.")
                 result_data = self._run_forensic_fallback(
@@ -192,9 +197,10 @@ class ModelAdapter:
                     quality_data,
                     analysis_id
                 )
-                checkpoint_status = f"Forensic Fallback Mode (Remote GPU unreachable: {e})"
+                checkpoint_status = f"Forensic Audit Mode (Remote GPU unreachable: {e})"
+                inference_mode = "fallback"
         else:
-            # High-fidelity forensic analyzer (when weights.ckpt is pending download or remote GPU unconfigured)
+            # Transparent forensic quality audit (when weights.ckpt is pending download and remote GPU unconfigured)
             result_data = self._run_forensic_fallback(
                 frames,
                 offsets,
@@ -205,7 +211,8 @@ class ModelAdapter:
                 quality_data,
                 analysis_id
             )
-            checkpoint_status = "Forensic Fallback Mode (weights.ckpt missing — place checkpoint to enable live weights)"
+            checkpoint_status = "Forensic Audit Mode (weights.ckpt missing — place checkpoint or set COLAB_GPU_URL for live weights)"
+            inference_mode = "fallback"
 
         # Stage 7: Regional heatmaps and artifact generation
         if progress_callback:
@@ -262,7 +269,8 @@ class ModelAdapter:
                 "video_duration_s": round(duration_s, 2),
                 "processing_time_s": round(elapsed_s, 2),
                 "model_architecture": "DFD-FCG (CLIP ViT-L/14 + FCG)",
-                "checkpoint_status": checkpoint_status
+                "checkpoint_status": checkpoint_status,
+                "inference_mode": inference_mode
             },
             "branch_analysis": {
                 "pct_spatial": result_data["aggregated"]["pct_spatial"],
@@ -436,8 +444,10 @@ class ModelAdapter:
         analysis_id: str
     ) -> Dict[str, Any]:
         """Runs live PyTorch inference using the loaded DFD-FCG checkpoint."""
-        # Ensure xai engine is imported
-        sys.path.insert(0, str(settings.STORAGE_DIR.parent))
+        # Ensure explainability repo root is in sys.path
+        xai_root = str(settings.WORKSPACE_DIR / "dfd-fcg-explainability")
+        if xai_root not in sys.path:
+            sys.path.insert(0, xai_root)
         from xai.engine import Recorder, analyse_clips
         
         rec = Recorder(model)
@@ -466,8 +476,8 @@ class ModelAdapter:
             tot = abs(ps) + abs(pt)
             if tot == 0: tot = 1e-9
             
-            c_patch = analysis["contrib_patches"].reshape(GRID, GRID)
-            patch_temporal_accum += c_patch
+            c_patch_t = analysis["contrib_patches"].reshape(GRID, GRID)
+            patch_temporal_accum += c_patch_t
             
             c_parts = analysis["contrib_parts"]
             parts_dict = {
@@ -476,6 +486,16 @@ class ModelAdapter:
                 "eyes": float(c_parts[2]),
                 "nose": float(c_parts[3])
             }
+
+            # Project spatial component contributions through spatial attention maps to 16x16 grid
+            # s_attention is (L, Q, 256). Average across layers -> (Q, 256).
+            if "s_attention" in analysis and analysis["s_attention"] is not None:
+                s_attn_mean = analysis["s_attention"].mean(axis=0) # (4, 256)
+                c_parts_arr = np.array([parts_dict["lips"], parts_dict["skin"], parts_dict["eyes"], parts_dict["nose"]])
+                sp_patch_vec = np.dot(c_parts_arr, s_attn_mean) # (256,)
+                patch_spatial_accum += sp_patch_vec.reshape(GRID, GRID)
+            else:
+                patch_spatial_accum += c_patch_t
             
             clips_data.append({
                 "clip_index": i,
@@ -498,7 +518,7 @@ class ModelAdapter:
             
         n_c = max(len(clips_data), 1)
         mean_tp_patch = patch_temporal_accum / n_c
-        mean_sp_patch = mean_tp_patch.copy() # Projected spatial
+        mean_sp_patch = patch_spatial_accum / n_c
         
         reg_map, _ = create_patch_region_map(mean_lms)
         regions_report = aggregate_region_attributions(mean_sp_patch, reg_map)
@@ -602,43 +622,32 @@ class ModelAdapter:
         
         regions_report = aggregate_region_attributions(sp_patch, reg_map)
         
-        # Estimate probabilities
-        mean_texture_dev = float(np.abs(sp_patch).mean())
-        base_fake_p = 0.50 + float(sp_patch.mean()) * 0.25
-        base_fake_p = max(0.15, min(0.85, base_fake_p))
-        
+        # Transparent neutral probabilities when neural weights checkpoint is not installed
         clips = []
         for i, st in enumerate(clip_starts[:settings.DEFAULT_MAX_CLIPS]):
             ed = st + offsets[-1]
-            jitter = (np.sin(i * 0.8) * 0.03)
-            pf = max(0.05, min(0.95, base_fake_p + jitter))
-            ps = (pf - 0.5) * 0.52
-            pt = (pf - 0.5) * 0.48
-            tot = abs(ps) + abs(pt)
-            if tot == 0: tot = 1e-9
-            
             clips.append({
                 "clip_index": i,
                 "start_frame": st,
                 "end_frame": ed,
                 "start_timestamp_s": round(st / fps, 2),
                 "end_timestamp_s": round(ed / fps, 2),
-                "p_final": round(pf, 4),
-                "p_real": round(1.0 - pf, 4),
-                "verdict": "FAKE" if pf >= 0.50 else "REAL",
-                "pct_spatial": round(100.0 * abs(ps) / tot, 2),
-                "pct_temporal": round(100.0 * abs(pt) / tot, 2),
-                "phi_spatial": round(ps, 4),
-                "phi_temporal": round(pt, 4),
+                "p_final": 0.50,
+                "p_real": 0.50,
+                "verdict": "INCONCLUSIVE",
+                "pct_spatial": 50.0,
+                "pct_temporal": 50.0,
+                "phi_spatial": 0.0,
+                "phi_temporal": 0.0,
                 "contrib_parts": {
-                    "lips": round(regions_report["lips"]["signed"] * 0.4, 4),
-                    "skin": round(regions_report["skin"]["signed"] * 0.4, 4),
-                    "eyes": round(regions_report["eyes"]["signed"] * 0.5, 4),
-                    "nose": round(regions_report["nose"]["signed"] * 0.4, 4),
+                    "lips": round(float(regions_report["lips"]["signed"] * 0.1), 4),
+                    "skin": round(float(regions_report["skin"]["signed"] * 0.1), 4),
+                    "eyes": round(float(regions_report["eyes"]["signed"] * 0.1), 4),
+                    "nose": round(float(regions_report["nose"]["signed"] * 0.1), 4),
                 },
-                "p_spatial": round(pf * 0.98, 4),
-                "p_temporal": round(pf * 1.02, 4),
-                "p_fusion": round(pf, 4)
+                "p_spatial": 0.50,
+                "p_temporal": 0.50,
+                "p_fusion": 0.50
             })
             
         frames_out = []
@@ -650,8 +659,8 @@ class ModelAdapter:
                 "face_detected": True,
                 "face_crop_url": f"/storage/heatmaps/{analysis_id}_face.png",
                 "landmark_count": 68,
-                "p_fake": c["p_final"],
-                "dominant_part": max(c["contrib_parts"], key=lambda k: abs(c["contrib_parts"][k])),
+                "p_fake": 0.50,
+                "dominant_part": "eyes",
                 "components": c["contrib_parts"]
             })
             
@@ -659,6 +668,12 @@ class ModelAdapter:
             clips,
             threshold_authentic=settings.THRESHOLD_AUTHENTIC,
             threshold_manipulated=settings.THRESHOLD_MANIPULATED
+        )
+        agg["verdict"] = "INCONCLUSIVE"
+        agg["explanation"] = (
+            "Video quality, facial geometry tracking, and frame integrity checks completed successfully. "
+            "Neural prediction is INCONCLUSIVE because trained model weights ('checkpoint/weights.ckpt') are not installed on this server and no remote GPU worker is configured. "
+            "Please provide model weights for live inference or test the verified FaceForensics++ benchmark samples."
         )
         
         return {

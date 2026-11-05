@@ -97,7 +97,7 @@ export const Results: React.FC<ResultsProps> = ({
         <h2 className="text-lg font-bold text-slate-100 mb-2">Analysis Unavailable</h2>
         <p className="text-xs text-slate-400 mb-6">{error || 'Requested analysis record could not be found.'}</p>
         <Link
-          to="/upload"
+          to="/"
           className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold"
         >
           Analyze a Video
@@ -196,9 +196,32 @@ export const Results: React.FC<ResultsProps> = ({
       <div className={`p-6 sm:p-8 rounded-2xl border ${verdictBorder} shadow-xl`}>
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <div className="lg:col-span-5 space-y-3">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-900/80 border border-slate-800 text-xs font-mono text-slate-400">
-              <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-              <span>DFD-FCG Foundation Architecture</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-900/80 border border-slate-800 text-xs font-mono text-slate-400">
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+                <span>DFD-FCG Foundation Architecture</span>
+              </div>
+              {verdict.inference_mode === 'benchmark' || (!verdict.inference_mode && result.analysis_id.startsWith('sample_')) ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-[11px] font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                  Verified Research Benchmark
+                </span>
+              ) : verdict.inference_mode === 'live' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                  Live DFD-FCG Inference
+                </span>
+              ) : verdict.inference_mode === 'remote' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[11px] font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                  Remote GPU Worker
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                  Forensic Quality Audit
+                </span>
+              )}
             </div>
             <h2 className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${verdictColor}`}>
               {verdict.verdict}

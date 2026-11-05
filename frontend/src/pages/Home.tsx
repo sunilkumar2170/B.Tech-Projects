@@ -14,9 +14,11 @@ import {
   Film
 } from 'lucide-react';
 import { ForensicLogo } from '../components/ui/ForensicLogo';
+import { HeroMeshGraphic } from '../components/illustrations/HeroMeshGraphic';
+import { PipelineDiagramGraphic } from '../components/illustrations/PipelineDiagramGraphic';
 import { Results } from './Results';
 import { api } from '../services/api';
-import type { AnalysisStatus, AnalysisResult, ProcessingStage } from '../types';
+import type { AnalysisStatus, AnalysisResult, ProcessingStage, HealthResponse } from '../types';
 
 type FlowState = 'upload' | 'preview' | 'processing' | 'results';
 
@@ -42,8 +44,15 @@ export const Home: React.FC = () => {
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [healthInfo, setHealthInfo] = useState<HealthResponse | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    api.getHealth()
+      .then((h) => setHealthInfo(h))
+      .catch((e) => console.log('Notice: health check connection:', e));
+  }, []);
 
   // Clean up object URL on unmount or file change
   useEffect(() => {
@@ -288,7 +297,7 @@ export const Home: React.FC = () => {
         className="hidden"
       />
 
-      <div className="w-full max-w-2xl">
+      <div className={`w-full ${state === 'upload' ? 'max-w-4xl' : 'max-w-2xl'}`}>
         {/* Error notification */}
         {errorMessage && (
           <div className="mb-6 p-4 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs flex items-start gap-3 shadow-lg">
@@ -311,11 +320,26 @@ export const Home: React.FC = () => {
         ---------------------------------------------------- */}
         {state === 'upload' && (
           <div className="flex flex-col items-center text-center">
-            {/* Minimal Custom SVG Graphic */}
-            <div className="mb-5 flex justify-center">
-              <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
-                <ForensicLogo size={76} scanning={true} />
+            {/* System Status Pill */}
+            {healthInfo && (
+              <div className="mb-4">
+                {healthInfo.live_inference_available ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-medium shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    DFD-FCG Active Checkpoint ({healthInfo.device?.toUpperCase() || 'CPU'})
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-mono font-medium shadow-sm">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                    Research Benchmark Mode · FaceForensics++ Audited
+                  </span>
+                )}
               </div>
+            )}
+
+            {/* Custom SVG Hero Illustration */}
+            <div className="mb-6 w-full max-w-lg">
+              <HeroMeshGraphic />
             </div>
 
             {/* Title */}
@@ -323,7 +347,7 @@ export const Home: React.FC = () => {
               Video Deepfake Detection
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 font-mono mb-8 max-w-md">
-              DFD-FCG Explainable AI · Facial Component & Temporal Attribution
+              DFD-FCG Explainable AI · Facial Component &amp; Temporal Attribution
             </p>
 
             {/* Central Dropzone */}
@@ -332,7 +356,7 @@ export const Home: React.FC = () => {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`w-full p-8 sm:p-12 rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center text-center group ${
+              className={`w-full max-w-2xl p-8 sm:p-12 rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center text-center group ${
                 isDragging
                   ? 'border-cyan-400 bg-cyan-950/20 scale-[1.01]'
                   : 'border-slate-800 hover:border-slate-700 bg-slate-900/60 hover:bg-slate-900'
@@ -366,7 +390,7 @@ export const Home: React.FC = () => {
             </div>
 
             {/* Subtle Benchmark Sample Quick-Loaders */}
-            <div className="mt-6 flex items-center gap-3 text-xs text-slate-500">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-500">
               <span>Or test verified benchmark:</span>
               <button
                 type="button"
@@ -382,6 +406,17 @@ export const Home: React.FC = () => {
               >
                 Authentic Sample (000)
               </button>
+            </div>
+
+            {/* Pipeline Architecture Graphic */}
+            <div className="w-full mt-12 pt-8 border-t border-slate-800/80">
+              <h3 className="text-xs font-mono uppercase tracking-wider text-slate-400 text-center mb-2">
+                Neural Explainability Pipeline
+              </h3>
+              <p className="text-xs text-slate-500 text-center max-w-lg mx-auto mb-4">
+                68-point facial landmark tracking to exact additive LayerNorm-Linear Shapley attribution
+              </p>
+              <PipelineDiagramGraphic />
             </div>
           </div>
         )}

@@ -46,6 +46,34 @@ export interface OverallVerdict {
   processing_time_s: number;
   model_architecture: string;
   checkpoint_status: string;
+  inference_mode?: 'benchmark' | 'live' | 'remote' | 'fallback';
+}
+
+export interface HealthResponse {
+  status: string;
+  service: string;
+  tagline: string;
+  version: string;
+  live_inference_available: boolean;
+  python_version: string;
+  torch_version: string;
+  opencv_version: string;
+  cuda_available: boolean;
+  device: string;
+  remote_gpu_worker: {
+    configured: boolean;
+    endpoint: string | null;
+  };
+  checkpoint_status: {
+    checkpoint_present: boolean;
+    weights_path: string;
+    model_loaded: boolean;
+    message: string;
+  };
+  thresholds: {
+    authentic: number;
+    manipulated: number;
+  };
 }
 
 export interface BranchShapley {

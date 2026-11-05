@@ -1,10 +1,10 @@
 import axios from 'axios';
-import type { VideoMetadata, AnalysisStatus, AnalysisResult, SampleVideo } from '../types';
+import type { VideoMetadata, AnalysisStatus, AnalysisResult, SampleVideo, HealthResponse } from '../types';
 
 const API_BASE = '/api';
 
 export const api = {
-  async getHealth() {
+  async getHealth(): Promise<HealthResponse> {
     const res = await axios.get(`${API_BASE}/health`);
     return res.data;
   },

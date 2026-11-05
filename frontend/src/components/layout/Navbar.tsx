@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { ForensicLogo } from '../ui/ForensicLogo';
 import { Moon, Sun } from 'lucide-react';
 import { api } from '../../services/api';
@@ -52,7 +53,7 @@ export const Navbar: React.FC = () => {
     <header className="sticky top-0 z-50 w-full border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand identity */}
-        <div className="flex items-center gap-3">
+        <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
           <div className="w-9 h-9 rounded-xl bg-slate-900 border border-cyan-500/30 flex items-center justify-center p-1 shadow-inner">
             <ForensicLogo size={24} scanning={false} />
           </div>
@@ -69,7 +70,7 @@ export const Navbar: React.FC = () => {
               DFD-FCG Explainable AI Forensic Architecture
             </p>
           </div>
-        </div>
+        </Link>
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">

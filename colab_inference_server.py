@@ -60,18 +60,22 @@ def init_dfd_fcg_model(checkpoint_path: str = "checkpoint/weights.ckpt"):
         # Import upstream DFD-FCG
         sys.path.insert(0, ".")
         from xai.engine import Recorder, analyse_clips
-        from net.DFD_FCG import DFD_FCG
+        from src.model.clip.svl import FFGSynoVideoLearner
         
         print(f"[*] Loading DFD-FCG model from {checkpoint_path}...")
-        model = DFD_FCG()
         if os.path.exists(checkpoint_path):
-            ckpt = torch.load(checkpoint_path, map_location=DEVICE)
-            state = ckpt.get("state_dict", ckpt)
-            clean_state = {k.replace("model.", ""): v for k, v in state.items()}
-            model.load_state_dict(clean_state, strict=False)
+            try:
+                model = FFGSynoVideoLearner.load_from_checkpoint(
+                    checkpoint_path, map_location=DEVICE, attn_record=True
+                )
+            except Exception:
+                model = FFGSynoVideoLearner.load_from_checkpoint(
+                    checkpoint_path, map_location=DEVICE, attn_record=True, strict=False
+                )
             print("[+] Weights loaded successfully!")
         else:
-            print(f"[!] Warning: checkpoint not found at {checkpoint_path}. Model running with random initialization.")
+            print(f"[!] Warning: checkpoint not found at {checkpoint_path}.")
+            return
             
         model.to(DEVICE)
         model.eval()

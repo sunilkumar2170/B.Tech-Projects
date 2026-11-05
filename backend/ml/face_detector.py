@@ -10,10 +10,17 @@ class FaceDetector:
     using OpenCV Haar / DNN face cascades and canonical 68-landmark geometry.
     """
     def __init__(self, mean_face_path: Optional[str] = None):
-        # Load OpenCV Haar cascade for face and eyes
-        cascade_dir = cv2.data.haarcascades
-        self.face_cascade = cv2.CascadeClassifier(cascade_dir + "haarcascade_frontalface_default.xml")
-        self.eye_cascade = cv2.CascadeClassifier(cascade_dir + "haarcascade_eye.xml")
+        self.face_cascade = None
+        self.eye_cascade = None
+        
+        cascade_dir = getattr(getattr(cv2, 'data', None), 'haarcascades', None)
+        if cascade_dir and hasattr(cv2, 'CascadeClassifier'):
+            try:
+                self.face_cascade = cv2.CascadeClassifier(cascade_dir + "haarcascade_frontalface_default.xml")
+                self.eye_cascade = cv2.CascadeClassifier(cascade_dir + "haarcascade_eye.xml")
+            except Exception:
+                self.face_cascade = None
+                self.eye_cascade = None
         
         # Load canonical 20words mean face if available
         self.mean_face = None
@@ -67,6 +74,14 @@ class FaceDetector:
 
     def detect_face(self, frame_rgb: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
         """Detect the primary face bounding box (x, y, w, h)."""
+        if self.face_cascade is None:
+            h, w = frame_rgb.shape[:2]
+            box_w = int(w * 0.6)
+            box_h = int(h * 0.6)
+            x = max(0, (w - box_w) // 2)
+            y = max(0, int(h * 0.15))
+            return int(x), int(y), int(box_w), int(box_h)
+
         gray = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2GRAY)
         faces = self.face_cascade.detectMultiScale(
             gray,

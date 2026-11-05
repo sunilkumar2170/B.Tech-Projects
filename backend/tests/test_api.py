@@ -46,8 +46,13 @@ def test_sample_selection_and_analysis_flow():
     status_data = res_status.json()
     assert "status" in status_data
 
+def test_invalid_video_id_returns_404():
+    res = client.post("/api/analysis/nonexistent_video_12345")
+    assert res.status_code == 404
+
 if __name__ == "__main__":
     test_health_endpoint()
     test_samples_endpoint()
     test_sample_selection_and_analysis_flow()
+    test_invalid_video_id_returns_404()
     print("All backend API tests passed!")

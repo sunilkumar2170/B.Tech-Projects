@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, Dict, Any
 
+from app.core.config import settings
 from app.schemas.analysis import AnalysisStatus, AnalysisResult
 from app.services.analysis_service import AnalysisService
 
@@ -13,6 +14,15 @@ def start_analysis(video_id: str, sample_key: Optional[str] = Query(None)):
     if video_id.startswith("sample_"):
         sample_key = video_id.replace("sample_", "")
         
+    if sample_key:
+        if sample_key not in ("000", "000_003"):
+            raise HTTPException(status_code=404, detail=f"Benchmark sample '{sample_key}' not found.")
+    else:
+        # Validate that uploaded file actually exists
+        matches = list(settings.UPLOADS_DIR.glob(f"{video_id}.*"))
+        if not matches:
+            raise HTTPException(status_code=404, detail=f"Video with id '{video_id}' not found.")
+
     analysis_id = AnalysisService.create_analysis_job(video_id, sample_key=sample_key)
     return {
         "analysis_id": analysis_id,
