@@ -74,6 +74,16 @@ export interface HealthResponse {
     authentic: number;
     manipulated: number;
   };
+  database?: {
+    connected: boolean;
+    provider?: string;
+    database?: string;
+    latency_ms?: number;
+    version?: string;
+    total_saved_analyses?: number;
+    pooling?: string;
+    error?: string;
+  };
 }
 
 export interface BranchShapley {

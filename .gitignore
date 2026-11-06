@@ -33,3 +33,10 @@ backend/storage/temporary/*
 .DS_Store
 Thumbs.db
 *.tmp
+.neon
+.vercel
+frontend/.vercel
+.env
+.env.*
+!.env.example
+

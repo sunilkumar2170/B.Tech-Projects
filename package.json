@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@neon/config": "^0.0.0",
+    "@neon/env": "^0.0.0",
+    "zod": "^4.6.7"
+  }
+}

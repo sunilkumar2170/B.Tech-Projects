@@ -3,10 +3,16 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from typing import Optional
+from dotenv import load_dotenv
 
 # Base directories
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 WORKSPACE_DIR = BASE_DIR.parent
+
+# Load environment files (.env in backend or project root .env.local)
+load_dotenv(BASE_DIR / ".env")
+load_dotenv(WORKSPACE_DIR / ".env.local")
+load_dotenv(WORKSPACE_DIR / ".env")
 
 class Settings(BaseModel):
     PROJECT_NAME: str = "Video Deepfake Detection"
@@ -20,6 +26,11 @@ class Settings(BaseModel):
     
     # Google Colab / Remote GPU Worker Support (Optional)
     COLAB_GPU_URL: Optional[str] = os.environ.get("COLAB_GPU_URL", None)
+    
+    # Neon Database settings (Lakebase Postgres)
+    DATABASE_URL: Optional[str] = os.environ.get("DATABASE_URL", None)
+    DATABASE_URL_UNPOOLED: Optional[str] = os.environ.get("DATABASE_URL_UNPOOLED", None)
+    NEON_BRANCH: Optional[str] = os.environ.get("NEON_BRANCH", None)
     
     # Storage settings (NO database, local filesystem storage only)
     STORAGE_DIR: Path = BASE_DIR / "storage"

@@ -113,6 +113,14 @@ class AnalysisService:
                 pdf_path = settings.REPORTS_DIR / f"{analysis_id}.pdf"
                 ReportService.generate_pdf_report(result_data, pdf_path)
                 
+                # Persist forensic record to Neon PostgreSQL
+                try:
+                    from app.db.service import DatabaseService
+                    DatabaseService.save_analysis(result_data)
+                except Exception as db_err:
+                    import logging
+                    logging.getLogger("uvicorn").warning(f"[Neon] Notice: could not persist to database: {db_err}")
+                
                 # Mark all stages completed
                 for st in job["stages"]:
                     st.status = "completed"
@@ -179,5 +187,17 @@ class AnalysisService:
             import json
             with open(result_file, "r") as f:
                 return json.load(f)
+
+        # Retrieve persistent record from Neon PostgreSQL if local file was purged
+        try:
+            from app.db.session import SessionLocal
+            from app.db.models import ForensicAnalysisRecord
+            if SessionLocal:
+                with SessionLocal() as session:
+                    rec = session.query(ForensicAnalysisRecord).filter_by(id=analysis_id).first()
+                    if rec and rec.raw_payload:
+                        return rec.raw_payload
+        except Exception:
+            pass
                 
         raise AnalysisNotFoundError(analysis_id)

@@ -4,6 +4,7 @@ import cv2
 import sys
 from app.core.config import settings
 from ml.model_loader import model_loader
+from app.db.service import DatabaseService
 
 router = APIRouter(tags=["Health"])
 
@@ -38,5 +39,6 @@ def get_health_status():
         "thresholds": {
             "authentic": settings.THRESHOLD_AUTHENTIC,
             "manipulated": settings.THRESHOLD_MANIPULATED
-        }
+        },
+        "database": DatabaseService.test_connection()
     }

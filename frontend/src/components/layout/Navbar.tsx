@@ -74,6 +74,19 @@ export const Navbar: React.FC = () => {
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
+          {/* Neon Database indicator badge */}
+          {healthStatus?.database?.connected && (
+            <div 
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs shadow-sm" 
+              title={`Connected to Neon Lakebase Postgres${healthStatus.database?.latency_ms ? ` (${Math.round(healthStatus.database.latency_ms)}ms)` : ''}`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="text-emerald-400 font-mono text-[10px]">
+                Neon Postgres{healthStatus.database?.latency_ms ? ` (${Math.round(healthStatus.database.latency_ms)}ms)` : ''}
+              </span>
+            </div>
+          )}
+
           {/* Health indicator badge */}
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs shadow-sm">
             <span

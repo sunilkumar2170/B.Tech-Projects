@@ -136,7 +136,7 @@ Instead of merely outputting **REAL** or **FAKE**, the platform explains the mod
 │   │   ├── region_analysis.py   # 16×16 patch-to-region mapping & heatmaps
 │   │   ├── clip_aggregation.py  # Video-level aggregation & dynamic explanation
 │   │   └── quality_assessment.py# Laplacian blur, compression, exposure audit
-│   ├── storage/                 # Local filesystem storage (NO database)
+│   ├── storage/                 # Local filesystem storage & Neon Serverless PostgreSQL persistence
 │   │   ├── uploads/             # Received video files
 │   │   ├── processed/           # Completed analysis JSON records
 │   │   ├── reports/             # Generated PDF audit reports
@@ -233,7 +233,14 @@ The frontend is deployed to Vercel production with SPA routing rewrites:
 The backend is configured for 1-click cloud deployment:
 - **Render Blueprint:** Configured via [`render.yaml`](./render.yaml). Simply connect this repo to Render and choose **New > Blueprint**.
 - **Containerized Build:** Configured via [`backend/Dockerfile`](./backend/Dockerfile) with Python 3.12, OpenCV system libraries (`ffmpeg`, `libgl1`), and uvicorn.
-- **Database (Neon / PostgreSQL):** The platform uses high-speed in-memory job queues and file-based caching. For long-term SQL persistence, set the `DATABASE_URL` environment variable pointing to your Neon database.
+
+### 3. Neon Serverless PostgreSQL Database
+The backend is integrated with Neon Serverless PostgreSQL for persistent forensic audit records:
+- **Connection Mode:** Serverless PgBouncer connection pooling (`DATABASE_URL`) with direct unpooled migration support (`DATABASE_URL_UNPOOLED`).
+- **Provisioning:** Managed via [`neon.ts`](./neon.ts) and the Neon CLI (`neon deploy`).
+- **Audit Schema:** Tracks `forensic_analysis_records` (SHA-256 integrity, DFD-FCG fake probability, classification, heatmap metadata) and `database_audit_logs`.
+- **Status API:** Query live database telemetry and record counts via `GET /api/database/status` and `GET /api/database/records`.
+
 
 ---
 
