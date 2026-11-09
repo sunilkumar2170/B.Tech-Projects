@@ -151,7 +151,7 @@ export const Home: React.FC = () => {
     if (videoPreviewUrl && !isSample) {
       URL.revokeObjectURL(videoPreviewUrl);
     }
-    const sampleUrl = `/samples/${sample}.mp4`;
+    const sampleUrl = `/storage/samples/${sample}.mp4`;
     setSelectedFile(null);
     setIsSample(true);
     setSampleKey(sample);
@@ -159,11 +159,11 @@ export const Home: React.FC = () => {
 
     setVideoMeta({
       name: `faceforensics_${sample}.mp4 (Benchmark Sample)`,
-      sizeFormatted: '12.4 MB',
+      sizeFormatted: '0.9 MB',
       format: 'MP4',
-      duration: 10,
-      width: 720,
-      height: 720
+      duration: 16,
+      width: 640,
+      height: 480
     });
     setState('preview');
   };
