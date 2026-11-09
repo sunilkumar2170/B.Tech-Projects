@@ -3,8 +3,8 @@ from typing import List, Dict, Any, Tuple
 
 def aggregate_clip_results(
     clip_results: List[Dict[str, Any]],
-    threshold_authentic: float = 0.30,
-    threshold_manipulated: float = 0.70
+    threshold_authentic: float = 0.50,
+    threshold_manipulated: float = 0.50
 ) -> Dict[str, Any]:
     """
     Aggregates per-clip predictions and attributions into video-level metrics.

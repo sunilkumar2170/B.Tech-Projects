@@ -50,10 +50,9 @@ class Settings(BaseModel):
     # Reference explainability repo
     XAI_DIR: Path = WORKSPACE_DIR / "dfd-fcg-explainability" / "xai"
     
-    # Thresholds (Configurable)
-    THRESHOLD_AUTHENTIC: float = 0.30      # P(FAKE) < 0.30 -> LIKELY AUTHENTIC
-    THRESHOLD_MANIPULATED: float = 0.70    # P(FAKE) >= 0.70 -> LIKELY MANIPULATED
-    # Between 0.30 and 0.70 -> INCONCLUSIVE
+    # Thresholds (CVPR 2025 Binary Decision Boundary = 0.50)
+    THRESHOLD_AUTHENTIC: float = 0.50      # P(FAKE) < 0.50 -> LIKELY AUTHENTIC
+    THRESHOLD_MANIPULATED: float = 0.50    # P(FAKE) >= 0.50 -> LIKELY MANIPULATED
     
     # Upload limits
     MAX_UPLOAD_SIZE: int = 200 * 1024 * 1024 # 200 MB

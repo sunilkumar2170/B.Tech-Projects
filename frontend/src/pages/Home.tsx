@@ -67,18 +67,20 @@ export const Home: React.FC = () => {
   const processSelectedFile = (file: File) => {
     setErrorMessage(null);
 
-    // Validate extension
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    const validExts = ['.mp4', '.mov', '.avi', '.mkv'];
-    if (!validExts.includes(ext)) {
-      setErrorMessage(`Unsupported format '${ext}'. Supported formats: MP4, MOV, AVI, MKV.`);
+    // Validate extension or MIME type (support all standard & mobile video formats)
+    const parts = file.name.split('.');
+    const ext = parts.length > 1 ? '.' + parts.pop()?.toLowerCase() : '';
+    const validExts = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v', '.3gp', '.wmv', '.flv', '.ts', '.mpeg', '.mpg', '.ogv'];
+    const isVideoMime = file.type && file.type.startsWith('video/');
+    if (ext && !validExts.includes(ext) && !isVideoMime) {
+      setErrorMessage(`Unsupported format '${ext}'. Please select a video file (MP4, MOV, AVI, MKV, WEBM).`);
       return;
     }
 
-    // Validate size (max 200 MB)
-    const maxSize = 200 * 1024 * 1024;
+    // Validate size (max 1 GB)
+    const maxSize = 1024 * 1024 * 1024;
     if (file.size > maxSize) {
-      setErrorMessage('File size exceeds the 200 MB limit.');
+      setErrorMessage('File size exceeds the 1 GB limit.');
       return;
     }
 
@@ -142,6 +144,7 @@ export const Home: React.FC = () => {
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       processSelectedFile(e.target.files[0]);
+      e.target.value = '';
     }
   };
 
@@ -171,6 +174,9 @@ export const Home: React.FC = () => {
   const handleRemoveVideo = () => {
     if (videoPreviewUrl && !isSample) {
       URL.revokeObjectURL(videoPreviewUrl);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
     setSelectedFile(null);
     setIsSample(false);
@@ -293,7 +299,7 @@ export const Home: React.FC = () => {
         type="file"
         ref={fileInputRef}
         onChange={handleFileInputChange}
-        accept=".mp4,.mov,.avi,.mkv"
+        accept="video/*,.mp4,.mov,.avi,.mkv,.webm,.m4v"
         className="hidden"
       />
 

@@ -257,7 +257,9 @@ export const Results: React.FC<ResultsProps> = ({
                 <div>Real: &lt;{verdict.threshold_authentic.toFixed(2)}</div>
                 <div>Fake: &ge;{verdict.threshold_manipulated.toFixed(2)}</div>
               </div>
-              <span className="text-[10px] text-slate-500 block mt-1">Middle: Inconclusive</span>
+              <span className="text-[10px] text-slate-500 block mt-1">
+                {verdict.threshold_authentic === verdict.threshold_manipulated ? 'CVPR 2025 Binary (0.50)' : 'Middle: Inconclusive'}
+              </span>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80">

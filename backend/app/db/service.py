@@ -40,10 +40,11 @@ class DatabaseService:
                     "pooling": "PgBouncer Serverless Pooler Active"
                 }
         except Exception as e:
+            logger.warning(f"[Neon] Database diagnostic check failed: {e}")
             return {
                 "connected": False,
                 "provider": "Neon (Lakebase Postgres)",
-                "error": str(e)
+                "error": "Database connection unavailable; running in local fallback mode."
             }
 
     @staticmethod
