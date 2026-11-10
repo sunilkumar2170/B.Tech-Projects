@@ -75,10 +75,12 @@ class ModelLoader:
             self._status["message"] = "Model loaded successfully into memory."
             print("[ModelLoader] Model loaded successfully.")
         except Exception as e:
+            import traceback
             self._status["model_loaded"] = False
-            self._status["error"] = str(e)
-            self._status["message"] = f"Failed to load checkpoint: {str(e)}"
-            print(f"[ModelLoader] Warning: could not load model checkpoint: {e}")
+            self._status["error"] = repr(e)
+            self._status["message"] = f"Failed to load checkpoint: {repr(e)}"
+            print(f"[ModelLoader] Warning: could not load model checkpoint: {repr(e)}")
+            traceback.print_exc()
 
     def get_model(self):
         return self._model

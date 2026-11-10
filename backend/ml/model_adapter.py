@@ -34,6 +34,13 @@ class ModelAdapter:
     Preserves original mathematical decompositions while offering robust,
     production-ready video analysis and explainability output.
     Supports local checkpoint execution and remote Google Colab GPU workers.
+
+    Fixes applied (2026-11-06):
+    - Face detection now samples evenly across full video duration (not just first 60 frames).
+    - Benchmark clip timestamps bounded to actual video duration.
+    - Live inference dominant_temporal_region computed from temporal patch attributions.
+    - Separate spatial/temporal region attributions passed to aggregate_region_attributions.
+    - Fallback dominant region excludes 'background' (non-face region) from max selection.
     """
     def __init__(self):
         self.face_detector = FaceDetector(mean_face_path=str(settings.STORAGE_DIR.parent / "misc" / "20words_mean_face.npy"))
@@ -101,7 +108,10 @@ class ModelAdapter:
         face_crops = []
         all_landmarks = []
         
-        for idx in range(min(n_frames, 60)):
+        # FIX: Sample frames evenly across the entire video for face detection
+        # (previously hardcoded to first 60 frames only, missing faces in longer videos)
+        face_sample_indices = np.linspace(0, n_frames - 1, min(n_frames, 60), dtype=int)
+        for idx in face_sample_indices:
             fr = frames[idx]
             crop, lms, det = self.face_detector.crop_and_align_face(fr, crop_size=CROP)
             detected_flags.append(det)
@@ -153,6 +163,7 @@ class ModelAdapter:
                 offsets,
                 clip_starts,
                 fps,
+                duration_s,
                 analysis_id
             )
             checkpoint_status = "Exact DFD-FCG Research Checkpoint (FaceForensics++ c23 Benchmark)"
@@ -165,9 +176,11 @@ class ModelAdapter:
                 offsets,
                 clip_starts,
                 fps,
+                duration_s,
                 primary_face_crop,
                 mean_lms,
-                analysis_id
+                analysis_id,
+                progress_callback=progress_callback
             )
             checkpoint_status = f"DFD-FCG Active Checkpoint (Device: {status_info['device']})"
             inference_mode = "live"
@@ -192,6 +205,7 @@ class ModelAdapter:
                     offsets,
                     clip_starts,
                     fps,
+                    duration_s,
                     primary_face_crop,
                     mean_lms,
                     quality_data,
@@ -206,6 +220,7 @@ class ModelAdapter:
                 offsets,
                 clip_starts,
                 fps,
+                duration_s,
                 primary_face_crop,
                 mean_lms,
                 quality_data,
@@ -329,6 +344,7 @@ class ModelAdapter:
         offsets: List[int],
         clip_starts: List[int],
         fps: float,
+        duration_s: float,
         analysis_id: str
     ) -> Dict[str, Any]:
         """Loads and adapts exact benchmark numbers from the research repository."""
@@ -362,15 +378,28 @@ class ModelAdapter:
             tp_patch = patch_arr.mean(0).reshape(GRID, GRID)
         
         reg_map, _ = create_patch_region_map(mean_lms)
-        regions_report = aggregate_region_attributions(sp_patch, reg_map)
+        # FIX: Pass separate temporal patch for genuine spatial/temporal region breakdown
+        regions_report = aggregate_region_attributions(sp_patch, reg_map, temporal_patch_attributions=tp_patch)
         
-        # Build clips across all n_use benchmark clips (exact 60 clips from audited research dataset)
-        clips = []
+        # FIX: Clip timestamps bounded by actual video duration.
+        # Previously: st = i * fps * stride (unbounded), causing timestamps > duration.
+        # Now: use actual benchmark clip starts reconstructed from the original protocol,
+        # capped at n_frames-1 to avoid timeline overflow.
         n_use = len(p_final_arr)
         window_frames = offsets[-1] if offsets else int(round(fps * 3.0))
+        n_frames_total = int(round(duration_s * fps))
+        
+        clips = []
         for i in range(n_use):
-            st = int(round(i * fps * settings.CLIP_STRIDE))
-            ed = st + window_frames
+            # Reconstruct start frame from benchmark clip index (original protocol: stride 1 frame)
+            # Benchmark has 60 clips sampled evenly from [0, n_frames - window_frames]
+            if n_frames_total > window_frames:
+                max_start = n_frames_total - window_frames
+                st = int(round(i * max_start / max(n_use - 1, 1)))
+            else:
+                st = 0
+            ed = min(st + window_frames, n_frames_total)
+            
             pf = float(p_final_arr[i])
             ps = float(phi_s_arr[i])
             pt = float(phi_t_arr[i])
@@ -381,8 +410,8 @@ class ModelAdapter:
                 "clip_index": i,
                 "start_frame": st,
                 "end_frame": ed,
-                "start_timestamp_s": round(st / fps, 2),
-                "end_timestamp_s": round(ed / fps, 2),
+                "start_timestamp_s": round(st / max(fps, 1.0), 2),
+                "end_timestamp_s": round(ed / max(fps, 1.0), 2),
                 "p_final": round(pf, 4),
                 "p_final_raw": pf,
                 "p_real": round(1.0 - pf, 4),
@@ -428,8 +457,18 @@ class ModelAdapter:
             threshold_manipulated=settings.THRESHOLD_MANIPULATED
         )
         
-        dominant_spatial_reg = reg_json.get("spatial_region_dominant", ("eyes" if sample_key == "000_003" else "nose"))
-        dominant_temporal_reg = reg_json.get("temporal_region_dominant", "skin")
+        # FIX: Dominant regions derived from actual region attributions (not hardcoded)
+        face_regions_only = {k: v for k, v in regions_report.items() if k != "background"}
+        dominant_spatial_reg = reg_json.get(
+            "spatial_region_dominant",
+            max(face_regions_only, key=lambda k: abs(face_regions_only[k]["spatial_signed"]))
+            if face_regions_only else "eyes"
+        )
+        dominant_temporal_reg = reg_json.get(
+            "temporal_region_dominant",
+            max(face_regions_only, key=lambda k: abs(face_regions_only[k]["temporal_signed"]))
+            if face_regions_only else "skin"
+        )
 
         return {
             "aggregated": agg,
@@ -449,26 +488,35 @@ class ModelAdapter:
         offsets: List[int],
         clip_starts: List[int],
         fps: float,
+        duration_s: float,
         primary_face: np.ndarray,
         mean_lms: np.ndarray,
-        analysis_id: str
+        analysis_id: str,
+        progress_callback: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Runs live PyTorch inference using the loaded DFD-FCG checkpoint."""
         # Ensure explainability repo root is in sys.path
-        xai_root = str(settings.WORKSPACE_DIR / "dfd-fcg-explainability")
+        xai_root = str(settings.XAI_ROOT)
         if xai_root not in sys.path:
             sys.path.insert(0, xai_root)
         from xai.engine import Recorder, analyse_clips
         
-        rec = Recorder(model)
-        rec.patch()
+        rec = getattr(model, "_xai_recorder", None)
+        if rec is None:
+            rec = Recorder(model)
+            rec.patch()
+            model._xai_recorder = rec
         device = model_loader.device
         
         clips_data = []
         patch_spatial_accum = np.zeros((GRID, GRID), dtype=np.float64)
         patch_temporal_accum = np.zeros((GRID, GRID), dtype=np.float64)
         
+        total_clips = len(clip_starts[:settings.DEFAULT_MAX_CLIPS])
         for i, st in enumerate(clip_starts[:settings.DEFAULT_MAX_CLIPS]):
+            if progress_callback:
+                pct = int(60 + (i / max(total_clips, 1)) * 18)
+                progress_callback("dfd_fcg_inference", pct, f"DFD-FCG neural inference on clip {i+1}/{total_clips}...")
             # Prepare 10-frame clip tensor
             clip_frames = []
             for off in offsets:
@@ -507,12 +555,13 @@ class ModelAdapter:
             else:
                 patch_spatial_accum += c_patch_t
             
+            end_frame = min(st + offsets[-1], len(frames) - 1)
             clips_data.append({
                 "clip_index": i,
                 "start_frame": st,
-                "end_frame": st + offsets[-1],
-                "start_timestamp_s": round(st / fps, 2),
-                "end_timestamp_s": round((st + offsets[-1]) / fps, 2),
+                "end_frame": end_frame,
+                "start_timestamp_s": round(st / max(fps, 1.0), 2),
+                "end_timestamp_s": round(end_frame / max(fps, 1.0), 2),
                 "p_final": round(pf, 4),
                 "p_real": round(1.0 - pf, 4),
                 "verdict": "FAKE" if pf >= 0.50 else "REAL",
@@ -531,7 +580,8 @@ class ModelAdapter:
         mean_sp_patch = patch_spatial_accum / n_c
         
         reg_map, _ = create_patch_region_map(mean_lms)
-        regions_report = aggregate_region_attributions(mean_sp_patch, reg_map)
+        # FIX: Pass separate temporal patch for genuine independent regional breakdown
+        regions_report = aggregate_region_attributions(mean_sp_patch, reg_map, temporal_patch_attributions=mean_tp_patch)
         
         frames_out = []
         for i in range(min(12, len(clips_data))):
@@ -553,13 +603,24 @@ class ModelAdapter:
             threshold_manipulated=settings.THRESHOLD_MANIPULATED
         )
         
+        # FIX: Dominant regions computed from actual region attributions (not hardcoded "skin")
+        face_regions_only = {k: v for k, v in regions_report.items() if k != "background"}
+        dominant_spatial_reg = (
+            max(face_regions_only, key=lambda k: abs(face_regions_only[k]["spatial_signed"]))
+            if face_regions_only else "eyes"
+        )
+        dominant_temporal_reg = (
+            max(face_regions_only, key=lambda k: abs(face_regions_only[k]["temporal_signed"]))
+            if face_regions_only else "skin"
+        )
+        
         return {
             "aggregated": agg,
             "clips": clips_data,
             "frames": frames_out,
             "regions_report": regions_report,
-            "dominant_spatial_region": max(regions_report, key=lambda k: abs(regions_report[k]["signed"])),
-            "dominant_temporal_region": "skin",
+            "dominant_spatial_region": dominant_spatial_reg,
+            "dominant_temporal_region": dominant_temporal_reg,
             "patch_spatial_attributions": mean_sp_patch.tolist(),
             "patch_temporal_attributions": mean_tp_patch.tolist()
         }
@@ -590,6 +651,7 @@ class ModelAdapter:
         offsets: List[int],
         clip_starts: List[int],
         fps: float,
+        duration_s: float,
         primary_face: np.ndarray,
         mean_lms: np.ndarray,
         quality_data: Dict[str, Any],
@@ -598,6 +660,7 @@ class ModelAdapter:
         """
         Forensic fallback analyzer operating when model weights.ckpt is pending placement.
         Calculates spatial frequency anomalies and temporal frame differencing.
+        Reports INCONCLUSIVE — never fabricates deepfake predictions.
         """
         reg_map, _ = create_patch_region_map(mean_lms)
         
@@ -630,18 +693,19 @@ class ModelAdapter:
         tp_patch = (diff_accum / max(n_samples - 1, 1))
         tp_patch = (tp_patch - tp_patch.mean()) / (tp_patch.std() + 1e-5) * 0.35
         
-        regions_report = aggregate_region_attributions(sp_patch, reg_map)
+        # FIX: Pass separate temporal patch for genuine independent regional breakdown
+        regions_report = aggregate_region_attributions(sp_patch, reg_map, temporal_patch_attributions=tp_patch)
         
         # Transparent neutral probabilities when neural weights checkpoint is not installed
         clips = []
         for i, st in enumerate(clip_starts[:settings.DEFAULT_MAX_CLIPS]):
-            ed = st + offsets[-1]
+            ed = min(st + (offsets[-1] if offsets else 0), int(round(duration_s * fps)) - 1)
             clips.append({
                 "clip_index": i,
                 "start_frame": st,
                 "end_frame": ed,
-                "start_timestamp_s": round(st / fps, 2),
-                "end_timestamp_s": round(ed / fps, 2),
+                "start_timestamp_s": round(st / max(fps, 1.0), 2),
+                "end_timestamp_s": round(ed / max(fps, 1.0), 2),
                 "p_final": 0.50,
                 "p_real": 0.50,
                 "verdict": "INCONCLUSIVE",
@@ -686,13 +750,24 @@ class ModelAdapter:
             "Please provide model weights for live inference or test the verified FaceForensics++ benchmark samples."
         )
         
+        # FIX: Dominant region excludes background, computed from actual heatmaps
+        face_regions_only = {k: v for k, v in regions_report.items() if k != "background"}
+        dominant_spatial_reg = (
+            max(face_regions_only, key=lambda k: abs(face_regions_only[k]["spatial_signed"]))
+            if face_regions_only else "eyes"
+        )
+        dominant_temporal_reg = (
+            max(face_regions_only, key=lambda k: abs(face_regions_only[k]["temporal_signed"]))
+            if face_regions_only else "skin"
+        )
+        
         return {
             "aggregated": agg,
             "clips": clips,
             "frames": frames_out,
             "regions_report": regions_report,
-            "dominant_spatial_region": max(regions_report, key=lambda k: abs(regions_report[k]["signed"])),
-            "dominant_temporal_region": "skin",
+            "dominant_spatial_region": dominant_spatial_reg,
+            "dominant_temporal_region": dominant_temporal_reg,
             "patch_spatial_attributions": sp_patch.tolist(),
             "patch_temporal_attributions": tp_patch.tolist()
         }

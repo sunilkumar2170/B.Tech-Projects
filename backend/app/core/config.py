@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from pydantic import BaseModel, Field
 
@@ -7,6 +8,21 @@ from typing import Optional
 # Base directories
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 WORKSPACE_DIR = BASE_DIR.parent
+PARENT_DIR = WORKSPACE_DIR.parent
+
+def _find_path(rel_path: str) -> Path:
+    for candidate in [WORKSPACE_DIR / rel_path, PARENT_DIR / rel_path]:
+        if candidate.exists():
+            return candidate
+    return WORKSPACE_DIR / rel_path
+
+# Ensure backend and explainability repos are in sys.path globally
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+XAI_ROOT = _find_path("dfd-fcg-explainability")
+if str(XAI_ROOT) not in sys.path:
+    sys.path.insert(0, str(XAI_ROOT))
 
 class Settings(BaseModel):
     PROJECT_NAME: str = "Video Deepfake Detection"
@@ -17,6 +33,7 @@ class Settings(BaseModel):
     # Base directories
     BASE_DIR: Path = BASE_DIR
     WORKSPACE_DIR: Path = WORKSPACE_DIR
+    PARENT_DIR: Path = PARENT_DIR
     
     # Google Colab / Remote GPU Worker Support (Optional)
     COLAB_GPU_URL: Optional[str] = os.environ.get("COLAB_GPU_URL", None)
@@ -32,12 +49,13 @@ class Settings(BaseModel):
     RESEARCH_DATA_DIR: Path = STORAGE_DIR / "research_data"
     
     # Checkpoint settings
-    CHECKPOINT_DIR: Path = WORKSPACE_DIR / "checkpoint"
+    CHECKPOINT_DIR: Path = _find_path("checkpoint")
     CHECKPOINT_WEIGHTS: Path = CHECKPOINT_DIR / "weights.ckpt"
     CHECKPOINT_SETTINGS: Path = CHECKPOINT_DIR / "setting.yaml"
     
     # Reference explainability repo
-    XAI_DIR: Path = WORKSPACE_DIR / "dfd-fcg-explainability" / "xai"
+    XAI_ROOT: Path = XAI_ROOT
+    XAI_DIR: Path = XAI_ROOT / "xai"
     
     # Thresholds (Configurable)
     THRESHOLD_AUTHENTIC: float = 0.30      # P(FAKE) < 0.30 -> LIKELY AUTHENTIC
@@ -51,7 +69,7 @@ class Settings(BaseModel):
     # ML settings
     FACE_CROP_SIZE: int = 150
     GRID_SIZE: int = 16
-    DEFAULT_MAX_CLIPS: int = 30
+    DEFAULT_MAX_CLIPS: int = 4 if not os.environ.get("CUDA_VISIBLE_DEVICES") else 30
     NUM_FRAMES_PER_CLIP: int = 10
     CLIP_STRIDE: float = 0.333
     DEVICE: str = "cuda" if os.environ.get("CUDA_VISIBLE_DEVICES") else "cpu"

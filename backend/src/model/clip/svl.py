@@ -2,6 +2,21 @@ import wandb
 import torch
 import pickle
 import random
+from pathlib import Path
+
+def _resolve_pickle_path(p: str) -> str:
+    cand = Path(p)
+    if cand.is_file():
+        return str(cand)
+    backend_root = Path(__file__).resolve().parent.parent.parent.parent
+    c1 = backend_root / p
+    if c1.is_file():
+        return str(c1)
+    c2 = backend_root / 'misc' / cand.name
+    if c2.is_file():
+        return str(c2)
+    return p
+
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -655,7 +670,7 @@ class FFGSynoVideoLearner(SynoVideoLearner):
 
         self.save_hyperparameters()
 
-        with open(face_feature_path, "rb") as f:
+        with open(_resolve_pickle_path(face_feature_path), "rb") as f:
             _face_features = pickle.load(f)
             self.face_features = torch.stack(
                 [
@@ -824,7 +839,7 @@ class FFESynoVideoLearner(SynoVideoLearner):
 
         self.save_hyperparameters()
 
-        with open(face_feature_path, "rb") as f:
+        with open(_resolve_pickle_path(face_feature_path), "rb") as f:
             _face_features = pickle.load(f)
             self.face_features = torch.stack(
                 [

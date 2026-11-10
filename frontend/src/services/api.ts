@@ -29,7 +29,7 @@ const DEFAULT_SAMPLES: SampleVideo[] = [
 export const api = {
   async getHealth(): Promise<HealthResponse> {
     try {
-      const res = await axios.get(`${API_BASE}/health`, { timeout: 3000 });
+      const res = await axios.get(`${API_BASE}/health`, { timeout: 10000 });
       return res.data;
     } catch {
       // High-availability fallback response for deployed edge environments
@@ -58,7 +58,7 @@ export const api = {
 
   async getSampleVideos(): Promise<{ samples: SampleVideo[] }> {
     try {
-      const res = await axios.get(`${API_BASE}/videos/samples`, { timeout: 3000 });
+      const res = await axios.get(`${API_BASE}/videos/samples`, { timeout: 5000 });
       return res.data;
     } catch {
       return { samples: DEFAULT_SAMPLES };
@@ -67,7 +67,7 @@ export const api = {
 
   async selectSample(sampleKey: string): Promise<{ success: boolean; video: VideoMetadata }> {
     try {
-      const res = await axios.post(`${API_BASE}/videos/sample/${sampleKey}`, null, { timeout: 3000 });
+      const res = await axios.post(`${API_BASE}/videos/sample/${sampleKey}`, null, { timeout: 10000 });
       return res.data;
     } catch {
       const is000 = sampleKey === '000';
@@ -115,53 +115,30 @@ export const api = {
 
   async startAnalysis(videoId: string, sampleKey?: string): Promise<{ analysis_id: string }> {
     const key = sampleKey || (videoId.startsWith('sample_') ? videoId.replace('sample_', '') : undefined);
-    try {
-      const params = key ? { sample_key: key } : {};
-      const res = await axios.post(`${API_BASE}/analysis/${videoId}`, null, { params, timeout: 5000 });
-      return res.data;
-    } catch {
-      return { analysis_id: videoId };
-    }
+    const params = key ? { sample_key: key } : {};
+    const res = await axios.post(`${API_BASE}/analysis/${videoId}`, null, { params, timeout: 15000 });
+    return res.data;
   },
 
   async getAnalysisStatus(analysisId: string): Promise<AnalysisStatus> {
-    try {
-      const res = await axios.get(`${API_BASE}/analysis/${analysisId}/status`, { timeout: 3000 });
-      return res.data;
-    } catch {
-      return {
-        analysis_id: analysisId,
-        video_id: analysisId,
-        status: 'completed',
-        current_stage: 'result_aggregation',
-        progress: 100,
-        stages: [
-          { id: 'video_validation', name: 'Video validation', status: 'completed', progress: 100 },
-          { id: 'frame_extraction', name: 'Frame extraction', status: 'completed', progress: 100 },
-          { id: 'face_detection', name: 'Face detection', status: 'completed', progress: 100 },
-          { id: 'quality_assessment', name: 'Quality assessment', status: 'completed', progress: 100 },
-          { id: 'dfd_fcg_inference', name: 'DFD-FCG inference', status: 'completed', progress: 100 },
-          { id: 'region_attribution', name: 'Region attribution', status: 'completed', progress: 100 },
-          { id: 'result_aggregation', name: 'Result aggregation', status: 'completed', progress: 100 },
-        ],
-        elapsed_seconds: 1.25,
-        created_at: new Date().toISOString(),
-        completed_at: new Date().toISOString()
-      };
-    }
+    const res = await axios.get(`${API_BASE}/analysis/${analysisId}/status`, { timeout: 15000 });
+    return res.data;
   },
 
   async getAnalysisResult(analysisId: string): Promise<AnalysisResult> {
     try {
-      const res = await axios.get(`${API_BASE}/analysis/${analysisId}/result`, { timeout: 5000 });
+      const res = await axios.get(`${API_BASE}/analysis/${analysisId}/result`, { timeout: 30000 });
       return res.data;
-    } catch {
+    } catch (err: any) {
+      // ONLY fallback to bundled benchmark for known sample keys when offline; NEVER for user-uploaded videos
       const cleanKey = analysisId.replace('sample_', '');
-      const benchmark = BENCHMARK_SAMPLES[analysisId] || BENCHMARK_SAMPLES[`sample_${cleanKey}`];
-      if (benchmark) {
-        return benchmark;
+      if (cleanKey === '000' || cleanKey === '000_003') {
+        const benchmark = BENCHMARK_SAMPLES[analysisId] || BENCHMARK_SAMPLES[`sample_${cleanKey}`];
+        if (benchmark) {
+          return benchmark;
+        }
       }
-      throw new Error(`Analysis results for '${analysisId}' could not be loaded.`);
+      throw err;
     }
   },
 

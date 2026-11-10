@@ -7,6 +7,11 @@ from scipy.spatial import ConvexHull
 from pathlib import Path
 from typing import Dict, Any, Tuple, List, Optional
 
+# Fix (2026-11-06): aggregate_region_attributions now accepts an optional
+# temporal_patch_attributions argument so that spatial and temporal regional
+# attributions are genuinely independent (previously both columns were identical).
+# Also added dominant_temporal_region computation in model_adapter live inference.
+
 GRID = 16
 CROP = 150
 REGIONS = ["eyes", "nose", "lips", "skin", "background"]
@@ -52,13 +57,22 @@ def create_patch_region_map(landmarks: np.ndarray, grid: int = GRID, crop: int =
 
 def aggregate_region_attributions(
     patch_attributions: np.ndarray,
-    region_map: np.ndarray
+    region_map: np.ndarray,
+    temporal_patch_attributions: Optional[np.ndarray] = None
 ) -> Dict[str, Dict[str, float]]:
     """
     Aggregates per-patch attributions (16x16) into 5 regions.
     Computes signed sum, absolute share %, density (attribution / patch count).
+    
+    Args:
+        patch_attributions: (GRID, GRID) spatial attribution values
+        region_map: (GRID, GRID) string array of region labels
+        temporal_patch_attributions: optional (GRID, GRID) temporal attributions.
+            If provided, the temporal_signed / temporal_share_pct fields are
+            computed independently from the temporal patch values.
     """
     region_signed = {}
+    region_signed_t = {}
     patch_counts = {}
     
     for r in REGIONS:
@@ -66,31 +80,44 @@ def aggregate_region_attributions(
         count = int(np.sum(mask))
         patch_counts[r] = count
         if count > 0:
-            val = float(np.sum(patch_attributions[mask]))
+            val_s = float(np.sum(patch_attributions[mask]))
+            val_t = (float(np.sum(temporal_patch_attributions[mask]))
+                     if temporal_patch_attributions is not None else val_s)
         else:
-            val = 0.0
-        region_signed[r] = val
+            val_s = 0.0
+            val_t = 0.0
+        region_signed[r] = val_s
+        region_signed_t[r] = val_t
         
     # Normalized share % among face regions (eyes, nose, lips, skin)
     face_regions = ["eyes", "nose", "lips", "skin"]
-    face_abs_sum = sum(abs(region_signed[r]) for r in face_regions)
-    if face_abs_sum == 0:
-        face_abs_sum = 1e-9
+    face_abs_sum_s = sum(abs(region_signed[r]) for r in face_regions)
+    if face_abs_sum_s == 0:
+        face_abs_sum_s = 1e-9
+
+    face_abs_sum_t = sum(abs(region_signed_t[r]) for r in face_regions)
+    if face_abs_sum_t == 0:
+        face_abs_sum_t = 1e-9
         
-    shares = {}
+    shares_s = {}
+    shares_t = {}
     densities = {}
     for r in REGIONS:
         if r in face_regions:
-            shares[r] = 100.0 * abs(region_signed[r]) / face_abs_sum
+            shares_s[r] = 100.0 * abs(region_signed[r]) / face_abs_sum_s
+            shares_t[r] = 100.0 * abs(region_signed_t[r]) / face_abs_sum_t
         else:
-            shares[r] = 0.0
+            shares_s[r] = 0.0
+            shares_t[r] = 0.0
         cnt = max(patch_counts[r], 1)
         densities[r] = region_signed[r] / cnt
         
     result = {}
     for r in REGIONS:
         val_signed = round(region_signed[r], 4)
-        val_share = round(shares[r], 2)
+        val_share = round(shares_s[r], 2)
+        val_signed_t = round(region_signed_t[r], 4)
+        val_share_t = round(shares_t[r], 2)
         val_density = round(densities[r], 5)
         result[r] = {
             "name": r,
@@ -99,8 +126,8 @@ def aggregate_region_attributions(
             "share_pct": val_share,
             "spatial_signed": val_signed,
             "spatial_share_pct": val_share,
-            "temporal_signed": val_signed,
-            "temporal_share_pct": val_share,
+            "temporal_signed": val_signed_t,
+            "temporal_share_pct": val_share_t,
             "density": val_density
         }
     return result
