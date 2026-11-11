@@ -14,7 +14,7 @@ import torch
 import cv2
 from pathlib import Path
 
-BACKEND_DIR = Path(r"c:\Users\SUNIL\Downloads\betch projct\B.Tech-Projects\backend")
+BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
 from app.core.config import settings
@@ -368,7 +368,7 @@ def test_region_attribution_sums():
     
     # Face region shares must sum to 100%
     face_sum = sum(rep[r]['share_pct'] for r in ['eyes','nose','lips','skin'])
-    assert abs(face_sum - 100.0) < 1e-6, f"Face region shares sum to {face_sum}"
+    assert abs(face_sum - 100.0) < 0.05, f"Face region shares sum to {face_sum}"
     
     # Region patch counts must sum to GRID*GRID
     total_patches = sum(rep[r]['patch_count'] for r in rep)

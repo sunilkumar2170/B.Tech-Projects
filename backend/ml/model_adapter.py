@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from app.core.config import settings
 from ml.model_loader import model_loader
 from ml.face_detector import FaceDetector
+from ml.aligned_crop import AlignedFaceCropper
 from ml.preprocessing import read_video_frames, compute_clip_indices, preprocess_face_for_clip
 from ml.quality_assessment import assess_video_quality
 from ml.attribution import (
@@ -44,6 +45,10 @@ class ModelAdapter:
     """
     def __init__(self):
         self.face_detector = FaceDetector(mean_face_path=str(settings.STORAGE_DIR.parent / "misc" / "20words_mean_face.npy"))
+        self.aligned_cropper = AlignedFaceCropper(
+            self.face_detector.mean_face,
+            device="cuda" if torch.cuda.is_available() else "cpu"
+        )
         self.research_data_dir = settings.RESEARCH_DATA_DIR
         self._load_cached_research_data()
 
@@ -233,6 +238,7 @@ class ModelAdapter:
         if progress_callback:
             progress_callback("region_attribution", 80, "Generating 16x16 patch and region attribution heatmaps...")
             
+        primary_face_crop = result_data.get("primary_face", primary_face_crop)
         # Save primary face crop
         face_crop_rel = f"heatmaps/{analysis_id}_face.png"
         face_crop_file = settings.HEATMAPS_DIR / f"{analysis_id}_face.png"
@@ -513,19 +519,51 @@ class ModelAdapter:
         patch_temporal_accum = np.zeros((GRID, GRID), dtype=np.float64)
         
         total_clips = len(clip_starts[:settings.DEFAULT_MAX_CLIPS])
-        for i, st in enumerate(clip_starts[:settings.DEFAULT_MAX_CLIPS]):
+        active_starts = clip_starts[:settings.DEFAULT_MAX_CLIPS]
+        needed_indices = sorted({min(st + off, len(frames) - 1) for st in active_starts for off in offsets})
+
+        aligned_crops = {}
+        if self.aligned_cropper.is_available():
+            try:
+                if progress_callback:
+                    progress_callback("face_alignment", 55, "Extracting 2D-FAN facial landmarks and canonical aligned face crops...")
+                aligned_crops = self.aligned_cropper.crop_frames(frames, needed_indices)
+            except Exception as e:
+                print(f"[ModelAdapter] Notice: AlignedFaceCropper fallback to Haar: {e}")
+
+        # Update primary face crop if aligned face was successfully extracted
+        for f_idx in needed_indices:
+            if f_idx in aligned_crops and aligned_crops[f_idx][2] and aligned_crops[f_idx][0] is not None:
+                primary_face = aligned_crops[f_idx][0]
+                if aligned_crops[f_idx][1] is not None:
+                    mean_lms = aligned_crops[f_idx][1]
+                break
+
+        tf = getattr(model, "transform", None)
+
+        for i, st in enumerate(active_starts):
             if progress_callback:
                 pct = int(60 + (i / max(total_clips, 1)) * 18)
                 progress_callback("dfd_fcg_inference", pct, f"DFD-FCG neural inference on clip {i+1}/{total_clips}...")
+            
             # Prepare 10-frame clip tensor
             clip_frames = []
             for off in offsets:
-                fr = frames[min(st + off, len(frames) - 1)]
-                crop, _, _ = self.face_detector.crop_and_align_face(fr, crop_size=CROP)
-                tensor = preprocess_face_for_clip(crop)
-                clip_frames.append(tensor)
+                f_idx = min(st + off, len(frames) - 1)
+                fr = frames[f_idx]
+                if f_idx in aligned_crops and aligned_crops[f_idx][2] and aligned_crops[f_idx][0] is not None:
+                    crop = aligned_crops[f_idx][0]
+                else:
+                    crop, _, _ = self.face_detector.crop_and_align_face(fr, crop_size=CROP)
+                clip_frames.append(crop)
                 
-            clip_tensor = torch.stack(clip_frames).unsqueeze(0) # (1, 10, 3, 224, 224)
+            if tf is not None:
+                # Use official CLIP ViT-L/14 bicubic resize + antialias + normalization
+                t_raw = torch.from_numpy(np.stack(clip_frames)).permute(0, 3, 1, 2)
+                clip_tensor = tf(t_raw).unsqueeze(0) # (1, 10, 3, 224, 224)
+            else:
+                clip_tensor = torch.stack([preprocess_face_for_clip(c) for c in clip_frames]).unsqueeze(0)
+                
             analysis = analyse_clips(model, rec, clip_tensor, device=device)[0]
             
             pf = float(analysis["p_final"])
@@ -622,7 +660,8 @@ class ModelAdapter:
             "dominant_spatial_region": dominant_spatial_reg,
             "dominant_temporal_region": dominant_temporal_reg,
             "patch_spatial_attributions": mean_sp_patch.tolist(),
-            "patch_temporal_attributions": mean_tp_patch.tolist()
+            "patch_temporal_attributions": mean_tp_patch.tolist(),
+            "primary_face": primary_face
         }
 
     def _run_remote_colab_inference(

@@ -12,7 +12,8 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 from app.core.config import settings
-from app.api import health, upload, analysis, reports
+from app.api import health, upload, analysis, reports, database
+from app.db.session import init_db
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -37,6 +38,12 @@ app.include_router(health.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
 app.include_router(analysis.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
+app.include_router(database.router, prefix="/api")
+
+@app.on_event("startup")
+def on_startup():
+    settings.ensure_directories()
+    init_db()
 
 # Serve frontend build if present
 frontend_dist = settings.WORKSPACE_DIR / "frontend" / "dist"
