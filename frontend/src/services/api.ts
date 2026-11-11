@@ -28,32 +28,8 @@ const DEFAULT_SAMPLES: SampleVideo[] = [
 
 export const api = {
   async getHealth(): Promise<HealthResponse> {
-    try {
-      const res = await axios.get(`${API_BASE}/health`, { timeout: 10000 });
-      return res.data;
-    } catch {
-      // High-availability fallback response for deployed edge environments
-      return {
-        status: 'healthy',
-        service: 'Video Deepfake Detection',
-        tagline: 'DFD-FCG Explainable AI Forensic Platform',
-        version: '1.0.0',
-        live_inference_available: false,
-        python_version: '3.12',
-        torch_version: '2.6.0',
-        opencv_version: '4.10.0',
-        cuda_available: false,
-        device: 'cloud-edge',
-        remote_gpu_worker: { configured: false, endpoint: null },
-        checkpoint_status: {
-          checkpoint_present: true,
-          weights_path: 'checkpoint/weights.ckpt',
-          model_loaded: true,
-          message: 'FaceForensics++ c23 research benchmark mode active'
-        },
-        thresholds: { authentic: 0.3, manipulated: 0.7 }
-      };
-    }
+    const res = await axios.get(`${API_BASE}/health`, { timeout: 10000 });
+    return res.data;
   },
 
   async getSampleVideos(): Promise<{ samples: SampleVideo[] }> {
@@ -100,9 +76,6 @@ export const api = {
     formData.append('file', file);
 
     const res = await axios.post(`${API_BASE}/videos/upload`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total && onProgress) {
           const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);

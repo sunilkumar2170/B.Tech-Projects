@@ -23,8 +23,8 @@ app = FastAPI(
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000", "*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -58,11 +58,7 @@ else:
     def root():
         return {
             "service": settings.PROJECT_NAME,
-            "tagline": settings.TAGLINE,
-            "docs_url": "/docs",
-            "api_health": "/api/health"
+            "version": settings.VERSION,
+            "status": "online",
+            "docs": "/docs"
         }
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
