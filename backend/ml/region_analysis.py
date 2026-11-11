@@ -111,13 +111,26 @@ def aggregate_region_attributions(
             shares_t[r] = 0.0
         cnt = max(patch_counts[r], 1)
         densities[r] = region_signed[r] / cnt
-        
+
+    # Ensure rounded shares sum to exactly 100.00 among face regions
+    rounded_s = {r: round(shares_s[r], 2) for r in face_regions}
+    rem_s = round(100.0 - sum(rounded_s.values()), 2)
+    if rem_s != 0:
+        top_r = max(face_regions, key=lambda r: shares_s[r])
+        rounded_s[top_r] = round(rounded_s[top_r] + rem_s, 2)
+
+    rounded_t = {r: round(shares_t[r], 2) for r in face_regions}
+    rem_t = round(100.0 - sum(rounded_t.values()), 2)
+    if rem_t != 0:
+        top_r = max(face_regions, key=lambda r: shares_t[r])
+        rounded_t[top_r] = round(rounded_t[top_r] + rem_t, 2)
+
     result = {}
     for r in REGIONS:
         val_signed = round(region_signed[r], 4)
-        val_share = round(shares_s[r], 2)
+        val_share = rounded_s.get(r, 0.0)
         val_signed_t = round(region_signed_t[r], 4)
-        val_share_t = round(shares_t[r], 2)
+        val_share_t = rounded_t.get(r, 0.0)
         val_density = round(densities[r], 5)
         result[r] = {
             "name": r,

@@ -1,4 +1,5 @@
 import os
+os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
 import sys
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -38,7 +39,11 @@ class Settings(BaseModel):
     # Google Colab / Remote GPU Worker Support (Optional)
     COLAB_GPU_URL: Optional[str] = os.environ.get("COLAB_GPU_URL", None)
     
-    # Storage settings (NO database, local filesystem storage only)
+    # Neon Serverless PostgreSQL Database
+    DATABASE_URL: Optional[str] = os.environ.get("DATABASE_URL", None)
+    NEON_BRANCH: Optional[str] = os.environ.get("NEON_BRANCH", "production")
+    
+    # Storage settings
     STORAGE_DIR: Path = BASE_DIR / "storage"
     UPLOADS_DIR: Path = STORAGE_DIR / "uploads"
     TEMPORARY_DIR: Path = STORAGE_DIR / "temporary"
@@ -57,10 +62,9 @@ class Settings(BaseModel):
     XAI_ROOT: Path = XAI_ROOT
     XAI_DIR: Path = XAI_ROOT / "xai"
     
-    # Thresholds (Configurable)
-    THRESHOLD_AUTHENTIC: float = 0.30      # P(FAKE) < 0.30 -> LIKELY AUTHENTIC
-    THRESHOLD_MANIPULATED: float = 0.70    # P(FAKE) >= 0.70 -> LIKELY MANIPULATED
-    # Between 0.30 and 0.70 -> INCONCLUSIVE
+    # Thresholds (CVPR 2025 Binary Decision Boundary = 0.50)
+    THRESHOLD_AUTHENTIC: float = 0.50      # P(FAKE) < 0.50 -> LIKELY AUTHENTIC
+    THRESHOLD_MANIPULATED: float = 0.50    # P(FAKE) >= 0.50 -> LIKELY MANIPULATED
     
     # Upload limits
     MAX_UPLOAD_SIZE: int = 200 * 1024 * 1024 # 200 MB

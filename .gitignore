@@ -1,8 +1,16 @@
 # Model checkpoints (>100MB exceeds GitHub limits - download instructions in checkpoint/README.md)
 *.ckpt
 *.pth
+*.zip
 checkpoint/**/*.ckpt
 checkpoint/**/*.pth
+checkpoint/**/*.zip
+
+# Environment & Secrets
+.env
+.env.local
+backend/.env
+.neon
 
 # Python byte-compiled / cache
 __pycache__/
